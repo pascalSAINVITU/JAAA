@@ -5,12 +5,12 @@ Joint Account Autonomoue Agent With Secret for Obyte
 	* Share common funds
 
 # Work flow:
-	* One can create a Joint Account including 2 parties (addresses)
-	* Any of the 2 parties can send funds
-	* Any of the 2 parties can initial a payment
-	* The second party receive a message from JAAA to validate the payment
-	* The second party validate or cancel the payement
-	* If payment validated, then it is executed, if cancel the payment request is delete and the funds stay n the Joint Account
+	* One can create a Joint Account including up to 5 parties (addresses)
+	* Any of the 5 parties can send funds to fill the Joint Account
+	* Any of the 5 parties can initiate a payment
+	* The other parties will receive messages (one after the other) from JAAA to validate the payment
+	* The other parties can validate or cancel the payement
+	* If payment validated, then it is executed, if cancel the payment request is delete and the funds stay in the Joint Account
 	* At any moment, between the iniatilization and the validation of the payment, any party including the recipient of the payment can cancel the transaction.
 
 # flaw
