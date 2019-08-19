@@ -2,7 +2,7 @@
 Joint Account Autonomoue Agent With Secret for Obyte
 
 # Use cases:
-	* Share a common funds
+	* Share common funds
 
 # Work flow:
 	* One can create a Joint Account including 2 parties (addresses)
