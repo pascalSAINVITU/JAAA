@@ -21,12 +21,12 @@ Joint Account Autonomoue Agent With Secret for Obyte
 ## to setup a Joint Account:
 	* account aka ac = <account name> i.e. pascal et simona
 	* address1 aka a1 = <address of first party> i.e. HY3PDHJNQNIRTX5NDAYQKY7F3ZQBRQHI
-	* address1 aka a2 = <address of second party> i.e. O7NYCFUL5XIJTYE3O4MKGMGMTN6ATQAJ
+	* address2 aka a2 = <address of second party> i.e. O7NYCFUL5XIJTYE3O4MKGMGMTN6ATQAJ
 
 ## to initialize a payment:
 	* account aka c = <account name> i.e. pascal et simona
-	* am = <amount> i.e. 3000
-	* ad = <recipient address of the payment> i.e. O7NYCFUL5XIJTYE3O4MKGMGMTN6ATQAJ
+	* amount aka am = <amount> i.e. 3000
+	* adrdress aka ad = <recipient address of the payment> i.e. O7NYCFUL5XIJTYE3O4MKGMGMTN6ATQAJ
 
 ## to validate a payment:
 	this only possible for the parties that are not the initiator of the payment
