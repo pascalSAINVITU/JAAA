@@ -1,0 +1,217 @@
+[ 
+   	"autonomous agent",{ 
+
+		init: "{
+			// JAAAWS, Joint Account Agent
+			$owner = "O7NYCFUL5XIJTYE3O4MKGMGMTN6ATQAJ"; //office_testnet_wallet
+
+			$account = trigger.data.account otherwise trigger.data.ac otherwise ""; // sha256()?
+
+			$party1 = trigger.data.address1 otherwise trigger.data.a1 otherwise ""; $p1_exist = ($party1 !="");
+			$party2 = trigger.data.address2 otherwise trigger.data.a2 otherwise ""; $p2_exist = ($party2 !="");
+			$party3 = trigger.data.address3 otherwise trigger.data.a3 otherwise ""; $p3_exist = ($party3 !="");
+			
+			$trigger = trigger.address;
+			$pay_amount = trigger.data.amount otherwise trigger.data.am otherwise 0;
+			$pay_address = trigger.data.address otherwise trigger.data.ad otherwise "";
+			$pay_id_received = trigger.data.pay_id otherwise trigger.data.pi otherwise "";
+			
+		 	// use cases
+			$setup = ($p1_exist) AND ($p2_exist); // minimum 2.
+			$init_pay = ($pay_amount>0) AND ($pay_address !="");
+			$validate_pay = $pay_id_received != "";
+			$cancel = ($pay_id_received != "") AND (trigger.data.cancel==true);
+		}",
+	   	messages: {
+			cases: [
+				{ 
+					if: "{$setup}",
+					init: "{ 
+						if ($account=="") bounce ("need account name");
+						if (var[$account]) bounce ("Account "||$account||" already exist!");
+					}",
+					messages: [
+						{ 
+							app: "state", state: "{
+								var[$account] = trigger.output[[asset=base]];
+								if ($p1_exist )var[$account||"_1"] = $party1;
+								if ($p2_exist )var[$account||"_2"] = $party2;
+								if ($p3_exist )var[$account||"_3"] = $party3;
+								response['message'] = 'Multi-sig account set for '||$account||'. '; 
+							}"
+						}
+					]
+				},
+				{ 
+					if: "{$init_pay}",
+					init: "{ 
+						if ($account=="") bounce ("need account name");
+						if (!var[$account]) bounce ("Account "||$account||"  do not exist!");
+						$pay_id_created = sha256($account||'>'||$pay_address||': '||$pay_amount);
+						
+						
+						if (trigger.address == $party1)
+						{ 
+							$need_party1_validation = false; 
+							$initiator = 1;
+						}
+						else
+						{
+							if (trigger.address == $party2) 
+							{
+								$need_party2_validation = false; 
+								$initiator = 2; 
+							}
+							else
+							{
+								if (trigger.address == $party3) 
+								{
+									$need_party3_validation = false; 
+									$initiator = 3; 
+								}
+								else
+									bounce ("You are not a party of "||$account);
+							}
+						
+						}
+						if ($initiator==1) $next_validator_num = 2; else $next_validator_num = 1;
+
+					}",
+					messages: [
+						{ 
+							app: 'data', payload: {
+								message: `{"JAAAWS: Your approval is required for a payment from the account '"||$account||" to pay "||$pay_amount||" to "||$pay_address||", please send me back the pay_id linked to validate the transaction. And add a cancel = true field to refuse it."}`,
+								pay_id: `{$pay_id_created}`
+							},
+						},
+						{
+							app: 'payment', payload: {
+								asset: "base",
+								outputs: [{"address": "{var[$account||"_"||$next_validator_num]}", "amount": 1000 }]
+							}
+						},
+						{ 
+							app: "state", state: "{
+								var[$pay_id_created||"_account"] = $account;
+								var[$pay_id_created||"_amount"] = $pay_amount;
+								var[$pay_id_created||"_address"] = $pay_address;
+								var[$pay_id_created||"_initiator"] = trigger.address;
+
+								if ( $need_party1_validation) var[$pay_id_created||"_required_v1"] = true;
+								if ( $need_party2_validation) var[$pay_id_created||"_required_v2"] = true;
+								if ( $need_party3_validation) var[$pay_id_created||"_required_v3"] = true;
+
+								response['message'] = "Payment "||$pay_id_created||" created and approvals requested";
+							}"
+						}
+					]
+				},
+				{ 
+					if: "{$validate_pay}",
+					init: "{ 
+						$account_received = var[$pay_id_received||"_account"] otherwise "";
+						$pay_amount_to_valid = var[$pay_id_received||"_amount"] otherwise 0;
+						$pay_address_to_valid = var[$pay_id_received||"_address"] otherwise "";
+
+						if ($account_received == "") bounce ("Payment ID "||$pay_id_received||" do not exist!");
+						
+						// check if validation was needed
+						if ($trigger == var[$account_received||"_1"]) $validator_num = 1;
+						if ($trigger == var[$account_received||"_2"]) $validator_num = 2;
+						if ($trigger == var[$account_received||"_3"]) $validator_num = 3;
+
+						$is_this_validation_needed = var[$pay_id_created||"_required_v"||$validator_num] otherwise false;
+						if ($is_this_validation_needed ==false)
+							bounce ("Your validation by validator "||$validator_num||"is not required!");
+						
+						$is_next_needed = var[$pay_id_created||"_required_v"||($validator_num+1)] otherwise false;
+						if ($is_next_needed == true)
+						{
+							$next_address = var[$account_received||"_"||($validator_num+1)];
+							$next_amount = 1000;
+							$next_message = "JAAAWS: Your approval is required for a payment from the account '"||$account_received||" to pay "||$pay_amount_to_valid||" to "||$pay_address_to_valid||", please send me back the pay_id linked to validate the transaction. And add a cancel = true field to refuse it.";
+						}	
+						else
+						{ // lets do the payment
+							$next_address = $pay_address_to_valid;
+							$next_amount = $pay_amount_to_valid;
+							$next_message = "Payment of "||$next_amount||" done  to "||$next_address||" from account "||$account_received;
+						}				
+
+
+					}",
+					messages: [
+						{ 
+							app: 'data', payload: {
+								message: `{$next_message}`,
+								pay_id: `{$pay_id_received}`
+							},
+						},
+						{ 
+							app: 'payment', payload: {
+								asset: "base",
+								outputs: [{
+									"address": "{$next_address}", 
+									"amount": "{$next_amount}" 
+								}]
+							}
+						},
+						{ 
+							app: "state", state: "{
+								var[$pay_id_created||"_required_v"||$validator_num] = false;
+								if ($is_next_needed != true)
+								{
+									var[$account_received] = false;
+									var[$pay_address_to_valid] = false;
+									var[$pay_amount_to_valid] = false;
+								}
+							}"
+						}
+					]
+				},
+				{ 
+					if: "{$cancel}",
+					init: "{ 
+						$account_received = var[$pay_id_received||"_account"] otherwise "";
+						$amount = var[$pay_id_received||"_amount"] otherwise 0;
+						$address = var[$pay_id_received||"_address"] otherwise "";
+
+						if (trigger.address == var[$account_received||"_1"]) $cancel_valid = true;
+						if (trigger.address == var[$account_received||"_2"]) $cancel_valid = true;
+						if (trigger.address == var[$account_received||"_2"]) $cancel_valid = true;
+
+						if (trigger.address == $address) $cancel_valid = true;
+						if ($cancel_valid==false) bounce ("You must be a party to cancel!");
+					}",
+					messages: [
+						{ 
+							app: "state", state: "{
+								var[$account_received] = false;
+								var[$address] = false;
+								var[$amount] = false;
+								var[$pay_id_created||"_required_v1"] = false;
+								var[$pay_id_created||"_required_v2"] = false;
+								var[$pay_id_created||"_required_v3"] = false;
+								response['message'] = "Payment of "||$amount||" to "||$address||" is cancelled by "||trigger.address;
+							}"
+						}
+					]
+				},
+				{ // default case: filling the account, this is open to anyone, lol
+					messages: [
+						{ 
+							init: "{ 
+								if ($account=="") bounce ("need account name");
+								$input = trigger.output[[asset=base]];
+							}",
+							app: "state", state: "{
+								var[$account] += $input;
+								response['message'] = $input||" added to the account "||$account;
+							}"
+						}
+					]
+				}
+			]
+		}
+	}
+]
