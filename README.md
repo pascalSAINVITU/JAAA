@@ -1,5 +1,5 @@
 # JAAAWS
-Joint Account Autonomoue Agent With Secret for Obyte
+Joint Account Autonomous Agent With Secret for Obyte
 
 # Use cases:
 	* Share common funds
