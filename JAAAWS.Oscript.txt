@@ -1,5 +1,4 @@
-[ 
-   	"autonomous agent",{ 
+{ 
 
 		init: "{
 			// JAAAWS, Joint Account Agent
@@ -214,4 +213,3 @@
 			]
 		}
 	}
-]
