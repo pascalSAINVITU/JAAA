@@ -1,72 +1,93 @@
 { 
 /*
+
+MYESSCFGDERS3YIEGNZDOG2BI5HKQHLU
+35IT3ZYKEPQSCXG2F7A7KWNRAD3SZXN4
+MPG4MHVYUAP3B5IQX44LTINTSUKYB6JA
+
 JAAAWS, Joint Account Agent
+LPPB4XC5JYJKI3XOR7HVNXURC3L4WLXY
+
+Check in explorer: https://testnetexplorer.obyte.org/#zH6WUe1qg99cB5MesiPwd1WHYM07q/amP+81ePWh7cE=
+Agent address: 4INW7I2MEKFQNPCXC7LSLHX4DMMDMOXE
+
+Check in explorer: https://testnetexplorer.obyte.org/#1B9GACW7YoKuynQxMGYY2p7OlZORnYUhJJslSNIwc6M=
+Agent address: ZT4225WJIUTMUCLWPYW7KV772A2GUY6X
 
 */
     init: "{
         // FOREVER CONSTANTE
-            $AA_OWNER = "O7NYCFUL5XIJTYE3O4MKGMGMTN6ATQAJ"; // to collect the dust
-            $AA_NAME = "THAANKS";
-            $LOPAVAA = "YICOQCAWUSFBIQGBB4HUPQ23U37RA5WG"; // AA used to get last or popular version of other non-sensitives AA
-            $LIST_HOLDER_AA = var[$LOPAVAA]["HOLLAA_last_version"]; // get last version of HOLLAA
-            $INSTRUCTIONS = "Every opetation need 'account_name= <account name>', ...";
-
-        // get state and input
-            $account_name = trigger.data.account_name otherwise bounce ($INSTRUCTIONS);
+            $AA_NAME = "JAAA";
+            $LIST_HOLDER_AA = var["RDTLUKWZOU6LWHYU7XJ6ZOR4RIGVB5LC"]["HOLLAA_last_version"]; // get last version of HOLLAA from LOPAVAA
+            $INSTRUCTIONS = "Every operation need 'account_name= <account name>', if you received a token just use it, 'token = <received token> optionaly with 'cancel = true' to deny the payment, to initiate a payment, define 'pay_to' and 'amount'. To create a new account, add users with 'add_user = <address>' mutiple times then 'activate_account = true' and chose 'hierarchical/flat = true'.";
     }",
     messages: {
         cases: [
-            { if: "{ trigger.data.add_user }", // as long as the account is not activated
+            { if: "{ !!trigger.data.pay_id }", // token received as validation of a party
                 init: "{ 
-                    if (!!var[$account_name] or trigger.address != var[$account_name||"_owner"])
-                        bounce ("Account "||$account_name||" already exist!");
-                    if (!is_valid_address(trigger.data.add_user)) bounce ("Invalid address in 'add_user'!");
+                    $payment_id = trigger.data.pay_id; 
+                    $account_name = var[$payment_id||"_account"];
+                    // bouncings
+                        if (!var[$payment_id]) 
+                            bounce ("Token "||$payment_id||" do not exist!");
+                        if (!var[$LIST_HOLDER_AA][$account_name||"_users_"||trigger.address])
+                            bounce ("This address is not listed as actor of this account");
+                        if (!var[$payment_id||"_needs_"||trigger.address]) 
+                            bounce ("Your validation is not needed!");
+                    $validation_needed = var[$payment_id||"_validation_needed"]-1;
+                    $is_validated = $validation_needed == 0;
+                    $forwarding_needed = !$is_validated and var[$account_name] == "hierarchical";
                 }",
                 messages: [
                     { 
+                        if: `{ $is_validated }`, // is everyone have validate then we can send the message and pay 
                         app: 'data', payload: {
-                            list_name: `{ $account_name||"_users" }`,
-                            add: `{ trigger.data.add_user }`,
-                            value: `{ trigger.data.nick_name }`,
+                            message: `{ var[$payment_id||"_communication"] }`
                         },
                     },
-                    {
+                    {  
+                        if: `{ $is_validated }`,  // is everyone have validate then we can send the message and pay 
                         app: 'payment', payload: {  asset: "base", outputs: [
-                            {"address": "{ $LIST_HOLDER_AA }", "amount": 1000 }
-                        ]}
+                            { "address": "{ var[$payment_id||"_destination"] }", "amount": "{ var[$payment_id||"_amount"] }" }
+                        ] }
+                    },
+                    { 
+                        if: `{ $forwarding_needed }`,  // in hierarchical mode, not all party are warn at the same time
+                        app: 'data', payload: {
+                            list_name: `{ $account_name||"_users" }`,
+                            token: `{ $payment_id }`,
+                            get_previous: `{ $party }`
+                        },
+                    },
+                    {  
+                        if: `{ $forwarding_needed }`,
+                        app: 'payment', payload: {  asset: "base", outputs: [
+                            { "address": "{ $LIST_HOLDER_AA }", "amount": "{ 1000 }" }
+                        ] }
                     },
                     { 
                         app: "state", state: "{
-                            var[$account_name||"_owner"] = trigger.address;
-                            var[$account_name||"_balance"] += trigger.output[[asset=base]].amount - 1000;
-                            response['message'] = 'Multi-sig account set for '||$account_name||'. '; 
+                            var[$payment_id||"_needs_"||trigger.address] = false;
+                            var[$payment_id||"_validation_needed"] = $validation_needed;
+                            if ($is_validated) // clean the payment state
+                            {
+                                var[$payment_id] = false;
+                                var[$payment_id||"_initiator"] = false;
+                                var[$payment_id||"_communication"] = false;
+                                var[$payment_id||"_destination"] = false;
+                                var[$payment_id||"_amount"] = false;
+                                var[$payment_id||"_account"] = false;
+                            }
                         }"
                     }
                 ]
             },
-            { if: "{ trigger.data.activate_account }", // just after the addition of all the parties
-                init: "{ 
-                    if (!!var[$account_name] or trigger.address != var[$account_name||"_owner"])
-                        bounce ($account_name||" already active!");
-                    if (!trigger.data.hierachical and !trigger.data.flat)
-                        bounce ("you must specify 'hierarchical = true' or 'flat = true'")
-                }",
-                messages: [
-                    { 
-                        app: "state", state: "{
-                            var[$account_name] = trigger.data.hierachical ? "hierarchical": "flat";
-                            var[$account_name||"_owner"] = false;
-                            var[$account_name||"_balance"] += trigger.output[[asset=base]].amount;
-                            response['message'] = $account_name||" activated ^^"; 
-                        }"
-                    }
-                ]
-            },
-            { if: "{ trigger.data.pay_to}", // intiate a payment from teh joint account
+            { if: "{ !!trigger.data.pay_to}", // intiate a payment from teh joint account
                 init: "{ 
                 // bouncing
+                    $account_name = trigger.data.account_name otherwise bounce ($INSTRUCTIONS);
                     if (!var[$account_name]) bounce ("Account "||$account_name||" do not exist!");
-                    if (!var[$LIST_HOLDER_AA][$account_name||"_"||trigger.address])
+                    if (!var[$LIST_HOLDER_AA][$account_name||"_users_"||trigger.address])
                         bounce ("This address is not listed as actor of this account");
                     if (!is_valid_address(trigger.data.pay_to)) bounce ("Invalid address in 'pay_to'!");
                     if (!is_valid_amount(trigger.data.amount)) bounce ("amount must be positive !");
@@ -77,34 +98,36 @@ JAAAWS, Joint Account Agent
                 messages: [
                     { 
                         app: 'data', payload: {
-                            get_previous : `{ true }`,
+                            list_name: `{ $account_name||"_users" }`,
+                            get_previous: `{ true }`,
                             token: `{ $payment_id }`
                         },
                     },
                     { 
-                        if: `{$last != trigger.address}`,
                         app: 'payment', payload: { asset: "base", outputs: [
                             { "address": "{ $LIST_HOLDER_AA }", "amount": 1000 }
                         ] }
                     },
                     { 
                         app: "state", state: "{
-                            $nickname = var[$LIST_HOLDER_AA][$account_name||"_"||trigger.address];
+                            $nickname = var[$LIST_HOLDER_AA][$account_name||"_users_"||trigger.address];
                             var[$payment_id] = "Payment of "||trigger.data.amount||" bytes from "||$account_name||" to "||trigger.data.pay_to||" initiated by "||trigger.address||"("||$nickname||")";
                             var[$payment_id||"_initiator"] = trigger.address;
                             var[$payment_id||"_destination"] = trigger.data.pay_to;
                             var[$payment_id||"_amount"] = trigger.data.amount;
+                            var[$payment_id||"_account"] = $account_name;
                             var[$payment_id||"_communication"] = trigger.data.communication otherwise "none";
-                            var[$payment_id||"_validation_needed"] = var[$LIST_HOLDER_AA][$account_name||"_items_count"]-1;
+                            var[$payment_id||"_validation_needed"] = var[$LIST_HOLDER_AA][$account_name||"_users_items_count"]-1;
 
                             response['message'] = "Payment "||$payment_id||" created and approvals requested";
                         }"
                     },
                 ]
             },
-            { if: "{ trigger.data.cancel}", // cancel a payment providing the id token
+            { if: "{ !!trigger.data.cancel}", // cancel a payment providing the id token
                 init: "{ 
-                    if (!var[$LIST_HOLDER_AA][$account_name||"_"||trigger.address])
+                    $account_name = trigger.data.account_name otherwise bounce ($INSTRUCTIONS);
+                    if (!var[$LIST_HOLDER_AA][$account_name||"_users_"||trigger.address])
                         bounce ("This address is not listed as actor of this account");
                     $payment_id = trigger.data.token otherwise bounce ("'Token' needed !");
 
@@ -125,6 +148,9 @@ JAAAWS, Joint Account Agent
                             var[$payment_id||"_initiator"] = false;
                             var[$payment_id||"_validation_needed"] = false;
                             var[$payment_id||"_communication"] = false;
+                            var[$payment_id||"_destination"] = false;
+                            var[$payment_id||"_amount"] = false;
+                            var[$payment_id||"_account"] = false;
                             var[$payment_id||"_needs_"||trigger.address] = false;
                             var[$payment_id||"_destination"] = false;
                             var[$payment_id||"_amount"] = false;
@@ -134,31 +160,93 @@ JAAAWS, Joint Account Agent
                     }
                 ]
             },
-            { if: "{ trigger.address == $LIST_HOLDER_AA }", // forward request to next party and continue the list of parties
+            { if: "{ !!trigger.data.add_user }", // as long as the account is not activated
                 init: "{ 
-                    // initiate payment request     
-                        $payment_id = trigger.data.token; // get it back from HOLLAA
-                        $party = trigger.data.item_name;
-                        $validation_needed = $party != var[$payment_id||"_initiator"];
+                    $account_name = trigger.data.account_name otherwise bounce ($INSTRUCTIONS);
+                    if (!!var[$account_name||"_owner"])
+                        if (trigger.address != var[$account_name||"_owner"])
+                            bounce ("Account "||$account_name||" already exist!");
+                    if (!is_valid_address(trigger.data.add_user)) bounce ("Invalid address in 'add_user'!");
                 }",
                 messages: [
                     { 
                         app: 'data', payload: {
-                            message: `{"JAAA: Your approval is required: "||var[$payment_id]||", please send me back the token linked to validate the transaction. And add a 'cancel = true' field to refuse it."}`,
-                            token: `{ $payment_id }`,
-                            get_previous : `{ $party }`
+                            list_name: `{ $account_name||"_users" }`,
+                            add: `{ trigger.data.add_user }`,
+                            value: `{ trigger.data.nick_name }`,
+                        },
+                    },
+                    {
+                        app: 'payment', payload: {  asset: "base", outputs: [
+                            {"address": "{ $LIST_HOLDER_AA }", "amount": 250 }
+                        ]}
+                    },
+                    { 
+                        app: "state", state: "{
+                            var[$account_name||"_owner"] = trigger.address;
+                            var[$account_name||"_balance"] += trigger.output[[asset=base]].amount - 1000;
+                            response['message'] = 'One user added ^^'; 
+                        }"
+                    }
+                ]
+            },
+            { if: "{ !!trigger.data.activate_account }", // just after the addition of all the parties
+                init: "{ 
+                    $account_name = trigger.data.account_name otherwise bounce ($INSTRUCTIONS);
+                    if (!!var[$account_name||"_owner"])
+                        if (trigger.address != var[$account_name||"_owner"])
+                            bounce ($account_name||" already active!");
+                    if (!trigger.data.hierachical and !trigger.data.flat)
+                        bounce ("you must specify 'hierarchical = true' or 'flat = true'");
+                }",
+                messages: [
+                    { 
+                        app: "state", state: "{
+                            var[$account_name] = !!trigger.data.hierachical ? "hierarchical": "flat";
+                            var[$account_name||"_owner"] = false;
+                            var[$account_name||"_balance"] += trigger.output[[asset=base]].amount;
+                            response['message'] = $account_name||" activated ^^"; 
+                        }"
+                    }
+                ]
+            },
+            { if: "{ trigger.address == $LIST_HOLDER_AA }", // forward request to next party and continue the list of parties
+                init: "{ 
+                    // initiate payment request     
+                        $payment_id = trigger.data.token; // get it back from HOLLAA
+                        $account_name = var[$payment_id||"_account"];
+                        $party = trigger.data.item_name;
+                    // validation from party needed?
+                        $validation_needed = $party != var[$payment_id||"_initiator"];
+                        $amount_for_next_party = $validation_needed? 1000 : 0;
+                    // 
+                        $another_party_is_needed = $party != var[$LIST_HOLDER_AA][$account_name||"_users_first_item"];
+                        $forwarding_needed = $another_party_is_needed and var[$account_name] == "flat";
+                    // trick to be able to put condition on the payment and avoid 'already have base payment'
+                        $amount_for_AA = $forwarding_needed? 1000 : 0;
+                        
+                }",
+                messages: [
+                    {   
+                        if: `{ $validation_needed }`, // validation is not needed by initiator
+                        app: 'data', payload: {
+                            message: `{"JAAA: Your approval is required: "||var[$payment_id]||", please send me back the pay_id linked to validate the transaction. And add a 'cancel = true' field to refuse it."}`,
+                            me: `{ this_address }`,
+                            pay_id: `{ $payment_id }`,
                         },
                     },
                     { 
-                        if: `{ $party != var[$LIST_HOLDER_AA][$account_name||"_first_item"] and }`, // continue to get other parties if not finished yet
-                        app: 'payment', payload: { asset: "base", outputs: [
-                            { "address": "{ $LIST_HOLDER_AA }", "amount": 1000 }
-                        ] }
+                        if: `{ $forwarding_needed }`, 
+                        app: 'data', payload: {
+                            list_name: `{ $account_name||"_users" }`,
+                            get_previous: `{ $party }`,
+                            token: `{ $payment_id }`,
+                        },
                     },
                     { 
-                        if: `{ $validation_needed }`, // sending request message if validation is needed
                         app: 'payment', payload: { asset: "base", outputs: [
-                            { "address": "{ $party }", "amount": 1000 },
+                            { "address": "{ $LIST_HOLDER_AA }", "amount": "{ $amount_for_AA }" },
+                            { "address": "{ $party }", "amount": "{ $amount_for_next_party }" }
                         ] }
                     },
                     { 
@@ -168,48 +256,7 @@ JAAAWS, Joint Account Agent
                     },
                 ]
             },
-            { if: "{ trigger.data.token }", // token received as validation of a party
-                init: "{ 
-                    $payment_id = trigger.data.token; 
-                    // bouncings
-                        if (!var[$payment_id]) 
-                            bounce ("Token "||$payment_id||" do not exist!");
-                        if (!var[$LIST_HOLDER_AA][$account_name||"_"||trigger.address])
-                            bounce ("This address is not listed as actor of this account");
-                        if (!var[$payment_id||"_needs_"||trigger.address]) 
-                            bounce ("Your validation is not needed!");
-                    $validation_needed = var[$payment_id||"_validation_needed"]-1;
-                    $is_validated = $validation_needed == 0;
-                }",
-                messages: [
-                    { 
-                        if: `{$is_validated}`,
-                        app: 'data', payload: {
-                            message: `{ var[$payment_id||"_communication"] }`
-                        },
-                    },
-                    {  
-                        if: `{$is_validated}`,
-                        app: 'payment', payload: {  asset: "base", outputs: [
-                            { "address": "{ var[$payment_id||"_destination"] }", "amount": "{ var[$payment_id||"_amount"] }" }
-                        ] }
-                    },
-                    { 
-                        app: "state", state: "{
-                            var[$payment_id||"_needs_"||trigger.address] = false;
-                            var[$payment_id||"_validation_needed"] = $validation_needed;
-                            if ($is_validated) // clean the payment state
-                            {
-                                var[$payment_id] = false;
-                                var[$payment_id||"_initiator"] = false;
-                                var[$payment_id||"_communication"] = false;
-                                var[$payment_id||"_destination"] = false;
-                                var[$payment_id||"_amount"] = false;
-                            }
-                        }"
-                    }
-                ]
-            },
+            
             { // default case: bouncing the instruction
                 messages: [ { "app": "state","state": "{ bounce ($INSTRUCTIONS); }" } ]
             }
